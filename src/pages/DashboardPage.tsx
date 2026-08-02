@@ -282,6 +282,7 @@ function summarize(
 
   let investmentsValue = 0;
   let investmentsCost = 0;
+  let investmentsContributed = 0;
   const rollups: AccountRollup[] = [];
   const currentValuesByAccount: Record<string, number> = {};
   const allInvestmentTxns: TxnRow[] = [];
@@ -291,6 +292,7 @@ function summarize(
     const m = investmentMetrics(t);
     investmentsValue += m.current_value;
     investmentsCost += m.net_invested;
+    investmentsContributed += m.total_contributed;
     currentValuesByAccount[a.id] = m.current_value;
     for (const tt of t) allInvestmentTxns.push(tt);
     rollups.push({
@@ -303,8 +305,12 @@ function summarize(
     });
   }
   const investmentsPL = investmentsValue - investmentsCost;
+  // Denominator matches per-account return_pct (unrealized_pl / total_contributed)
+  // so the dashboard and account detail agree.
   const investmentsReturn =
-    investmentsCost > 0 ? (investmentsPL / investmentsCost) * 100 : null;
+    investmentsContributed > 0
+      ? (investmentsPL / investmentsContributed) * 100
+      : null;
 
   let loansOutstanding = 0;
   let loansInterestPaid = 0;
