@@ -100,32 +100,38 @@ export async function fetchAllTransactionsForAccounts(
 export async function fetchAccountMembers(
   accountId: string,
 ): Promise<AccountMember[]> {
-  const { data, error } = await supabase
+  const { data: members, error } = await supabase
     .from('account_members')
-    .select('account_id, user_id, role, added_at, profiles:profiles!inner(email, display_name)')
+    .select('account_id, user_id, role, added_at')
     .eq('account_id', accountId);
   if (error) throw error;
-  return (data ?? []).map((row) => {
-    const r = row as unknown as {
-      account_id: string;
-      user_id: string;
-      role: MemberRole;
-      added_at: string;
-      profiles:
-        | { email: string; display_name: string | null }
-        | Array<{ email: string; display_name: string | null }>
-        | null;
-    };
-    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-    return {
-      account_id: r.account_id,
-      user_id: r.user_id,
-      role: r.role,
-      added_at: r.added_at,
-      email: profile?.email ?? null,
-      display_name: profile?.display_name ?? null,
-    };
-  });
+  const rows = (members ?? []) as Array<{
+    account_id: string;
+    user_id: string;
+    role: MemberRole;
+    added_at: string;
+  }>;
+  if (rows.length === 0) return [];
+
+  const userIds = rows.map((r) => r.user_id);
+  const { data: profiles, error: profErr } = await supabase
+    .from('profiles')
+    .select('id, email, display_name')
+    .in('id', userIds);
+  if (profErr) throw profErr;
+  const byId = new Map<string, { email: string; display_name: string | null }>();
+  for (const p of (profiles ?? []) as Profile[]) {
+    byId.set(p.id, { email: p.email, display_name: p.display_name });
+  }
+
+  return rows.map((r) => ({
+    account_id: r.account_id,
+    user_id: r.user_id,
+    role: r.role,
+    added_at: r.added_at,
+    email: byId.get(r.user_id)?.email ?? null,
+    display_name: byId.get(r.user_id)?.display_name ?? null,
+  }));
 }
 
 export async function fetchAccountInvites(
